@@ -37,7 +37,6 @@ jobs:
             webAppName='${{ env.AZURE_WEBAPP_NAME }}'
             resourcegroup='${{ env.AZURE_RESOURCE_GROUP }}'
             location='${{ env.AZURE_LOCATION }}'
-          deploymentMode: Incremental
           deploymentName: bicepDeploymenttest
 
   # Stage 2: Build Next.js App
