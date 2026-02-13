@@ -1,0 +1,95 @@
+name: CI-CD Next.js App
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AZURE_WEBAPP_NAME: 2webapplicationdeploymenttestbytahira
+  AZURE_RESOURCE_GROUP: test-webapp-tahira
+  AZURE_LOCATION: westus2
+  NODE_VERSION: 16
+  PACKAGE_PATH: drop.zip
+
+jobs:
+  infra:
+    name: WebApplication Stage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Bicep Template
+        uses: azure/arm-deploy@v1
+        with:
+          subscriptionId: 'adc9f320-e56e-45b1-845e-c73484745fc8'
+          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+          template: .azure/bicep/main.bicep
+          parameters: |
+            webAppName='${{ env.AZURE_WEBAPP_NAME }}'
+            location='${{ env.AZURE_LOCATION }}'
+          deploymentMode: Incremental
+          deploymentName: bicepDeploymenttest
+
+  build:
+    name: Build Stage
+    runs-on: ubuntu-latest
+    needs: infra
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies, build and test
+        run: |
+          npm install
+          npm run build --if-present
+          npm run test --if-present
+
+      - name: Archive files
+        run: |
+          zip -r ${{ env.PACKAGE_PATH }} .
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: drop
+          path: ${{ env.PACKAGE_PATH }}
+
+  deploy:
+    name: Deploy Stage
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: drop
+          path: .
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: ${{ env.PACKAGE_PATH }}
+          slot-name: production
+          runtime-stack: 'NODE|16-lts'
+          startup-command: 'npm run start'
