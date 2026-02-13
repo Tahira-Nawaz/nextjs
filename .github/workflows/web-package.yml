@@ -1,4 +1,4 @@
-name: CI-CD Next.js App
+name: CI-CD Next.js Static App
 
 on:
   push:
@@ -10,7 +10,6 @@ env:
   AZURE_RESOURCE_GROUP: test-webapp-tahira
   AZURE_LOCATION: westus2
   NODE_VERSION: 16
-  PACKAGE_PATH: drop.zip
 
 jobs:
   # Stage 1: Create Web App Infrastructure
@@ -37,7 +36,7 @@ jobs:
           deploymentMode: Incremental
           deploymentName: bicepDeploymenttest
 
-  # Stage 2: Build Next.js App
+  # Stage 2: Build Next.js Static Site
   build:
     name: Build Stage
     runs-on: ubuntu-latest
@@ -51,23 +50,21 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies, build, and test
-        run: |
-          npm install
-          npm run build --if-present
-          npm run test --if-present
+      - name: Install dependencies
+        run: npm install
 
-      - name: Archive files
+      - name: Build and export Next.js static site
         run: |
-          zip -r ${{ env.PACKAGE_PATH }} .
+          npm run build
+          npm run export
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: drop
-          path: ${{ env.PACKAGE_PATH }}
+          path: out/
 
-  # Stage 3: Deploy to Azure Web App (B1, no slot)
+  # Stage 3: Deploy to Azure Web App
   deploy:
     name: Deploy Stage
     runs-on: ubuntu-latest
@@ -80,7 +77,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: drop
-          path: .
+          path: out/
 
       - name: Azure Login
         uses: azure/login@v1
@@ -91,5 +88,4 @@ jobs:
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: ${{ env.PACKAGE_PATH }}
-          startup-command: 'npm run start'
+          package: out/
