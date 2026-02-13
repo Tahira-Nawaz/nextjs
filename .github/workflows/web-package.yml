@@ -1,36 +1,97 @@
-# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
-# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
-
-name: Node.js Package
+name: CI-CD Next.js App
 
 on:
-  release:
-    types: [created]
+  push:
+    branches:
+      - main
+
+env:
+  AZURE_WEBAPP_NAME: 2webapplicationdeploymenttestbytahira
+  AZURE_RESOURCE_GROUP: test-webapp-tahira
+  AZURE_LOCATION: westus2
+  NODE_VERSION: 16
+  PACKAGE_PATH: drop.zip
 
 jobs:
-  build:
+  # Stage 1: Create Web App Infrastructure
+  infra:
+    name: WebApplication Stage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npm test
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  publish-gpr:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Azure Login
+        uses: azure/login@v1
         with:
-          node-version: 20
-          registry-url: https://npm.pkg.github.com/
-      - run: npm ci
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Bicep Template
+        uses: azure/arm-deploy@v1
+        with:
+          scope: subscription
+          subscriptionId: 'adc9f320-e56e-45b1-845e-c73484745fc8'
+          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+          template: .azure/bicep/main.bicep
+          parameters: |
+            webAppName='${{ env.AZURE_WEBAPP_NAME }}'
+            location='${{ env.AZURE_LOCATION }}'
+          deploymentMode: Incremental
+          deploymentName: bicepDeploymenttest
+
+  # Stage 2: Build Next.js App
+  build:
+    name: Build Stage
+    runs-on: ubuntu-latest
+    needs: infra
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies, build, and test
+        run: |
+          npm install
+          npm run build --if-present
+          npm run test --if-present
+
+      - name: Archive files
+        run: |
+          zip -r ${{ env.PACKAGE_PATH }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: drop
+          path: ${{ env.PACKAGE_PATH }}
+
+  # Stage 3: Deploy to Azure Web App (B1, no slot)
+  deploy:
+    name: Deploy Stage
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: drop
+          path: .
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: ${{ env.PACKAGE_PATH }}
+          startup-command: 'npm run start'
