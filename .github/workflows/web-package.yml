@@ -33,10 +33,7 @@ jobs:
           subscriptionId: 'adc9f320-e56e-45b1-845e-c73484745fc8'
           region: ${{ env.AZURE_LOCATION }}
           template: .azure/bicep/main.bicep
-          parameters: |
-            webAppName=${{ env.AZURE_WEBAPP_NAME }}
-            resourcegroup=${{ env.AZURE_RESOURCE_GROUP }}
-            location=${{ env.AZURE_LOCATION }}
+          parameters: webAppName=${{ env.AZURE_WEBAPP_NAME }} resourcegroup=${{ env.AZURE_RESOURCE_GROUP }} location=${{ env.AZURE_LOCATION }}
           deploymentMode: Incremental
           deploymentName: bicepDeploymenttest
 
