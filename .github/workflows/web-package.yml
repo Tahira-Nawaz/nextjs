@@ -6,8 +6,8 @@ on:
       - main
 
 env:
-  AZURE_WEBAPP_NAME: webapplicationbytahira
-  AZURE_RESOURCE_GROUP: test-webapp-tahira
+  AZURE_WEBAPP_NAME: webapplicationbytahira1
+  AZURE_RESOURCE_GROUP: test-webapp-tahira1
   AZURE_LOCATION: westus2
   NODE_VERSION: 14
 
